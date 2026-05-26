@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Connection testing endpoint rule
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // Reuseable global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "faseekhans2007@gmail.com";
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // 2. Validation blueprints for User
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email'])
+        && data.uid is string
+        && data.uid == request.auth.uid
+        && data.name is string && data.name.size() <= 150
+        && data.email is string && data.email.size() <= 150;
+    }
+
+    // 3. Match rules for users
+    match /users/{userId} {
+      allow read, write: if isAdmin();
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'age', 'gender', 'bloodGroup']);
+      allow delete: if false;
+    }
+
+    // Validation blueprint for Bookings
+    function isValidBooking(data) {
+      return data.keys().hasAll(['id', 'userId', 'patientName', 'patientPhone', 'patientEmail', 'doctorId', 'doctorName', 'departmentId', 'departmentName', 'date', 'time', 'status', 'createdAt'])
+        && data.id is string && data.id.size() <= 64
+        && data.userId is string && data.userId.size() <= 128
+        && (data.userId == request.auth.uid || request.auth.token.email == "faseekhans2007@gmail.com")
+        && data.patientName is string && data.patientName.size() <= 155
+        && data.patientEmail is string && data.patientEmail.size() <= 155
+        && data.patientPhone is string && data.patientPhone.size() <= 30
+        && data.doctorId is string && data.doctorId.size() <= 64
+        && data.doctorName is string && data.doctorName.size() <= 155
+        && data.departmentId is string && data.departmentId.size() <= 128
+        && data.departmentName is string && data.departmentName.size() <= 155
+        && data.date is string && data.date.size() <= 15
+        && data.time is string && data.time.size() <= 15
+        && data.status in ['Scheduled', 'Completed', 'Cancelled']
+        && data.createdAt is string && data.createdAt.size() <= 15;
+    }
+
+    // 4. Match rules for bookings
+    match /bookings/{bookingId} {
+      allow read, write: if isAdmin();
+      allow get: if isSignedIn() && isValidId(bookingId) && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(bookingId) && incoming().userId == request.auth.uid && isValidBooking(incoming());
+      allow update: if isSignedIn() && isValidId(bookingId) && resource.data.userId == request.auth.uid && incoming().userId == request.auth.uid && isValidBooking(incoming()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'notes', 'date', 'time']);
+      allow delete: if isSignedIn() && isValidId(bookingId) && resource.data.userId == request.auth.uid;
+    }
+  }
+}

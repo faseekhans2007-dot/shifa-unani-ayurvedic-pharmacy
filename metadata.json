@@ -1,0 +1,6 @@
+{
+  "name": "Shifa Unani Ayurvedic Pharmacy",
+  "description": "An elegant, holistic clinic and pharmacy platform for M/S Shifa Unani Ayurvedic Pharmacy. Includes department exploration, doctor list, live appointment booking, Ayurvedic wellness insights, and a secure Patient Portal for health records.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
